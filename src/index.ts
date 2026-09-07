@@ -35,6 +35,10 @@ app.use('/api/uploads', uploadsRouter)
 app.use('/api/configuracion', configuracionRouter)
 app.use('/api/mercadopago', mercadopagoRouter)
 
+app.get('/', (_req, res) => {
+  res.json({ ok: true, servicio: 'Tortillas al Paso API' })
+})
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
