@@ -1,0 +1,240 @@
+import { Router } from 'express'
+import { Pedido } from '../models/Pedido.js'
+import { Zona } from '../models/Zona.js'
+import { Puesto } from '../models/Puesto.js'
+import { verificarToken, requiereAdmin } from '../middleware/auth.js'
+import { subirArchivo, upload } from './uploads.js'
+
+export const pedidosRouter = Router()
+
+// GET /api/pedidos -> lista todos (solo admin, más nuevos primero)
+pedidosRouter.get('/', verificarToken, requiereAdmin, async (_req, res) => {
+  const pedidos = await Pedido.find()
+    .populate('zona')
+    .populate('puesto')
+    .sort({ createdAt: -1 })
+  res.json(pedidos)
+})
+
+// GET /api/pedidos/estadisticas -> ingresos y ventas agregadas (solo admin)
+// OJO: esta ruta va ANTES de /:id para que Express no confunda "estadisticas" con un id.
+pedidosRouter.get('/estadisticas', verificarToken, requiereAdmin, async (_req, res) => {
+  const pedidos = await Pedido.find({ estado: { $ne: 'cancelado' } })
+    .populate('zona')
+    .populate('puesto')
+    .sort({ createdAt: -1 })
+
+  const ahora = new Date()
+  const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+  const hace7dias = new Date(inicioHoy.getTime() - 6 * 24 * 60 * 60 * 1000)
+  const hace30dias = new Date(inicioHoy.getTime() - 29 * 24 * 60 * 60 * 1000)
+  const hace14dias = new Date(inicioHoy.getTime() - 13 * 24 * 60 * 60 * 1000)
+
+  let hoy = 0
+  let semana = 0
+  let mes = 0
+
+  const porDiaMap = new Map<string, number>()
+  const porZonaMap = new Map<string, { total: number; pedidos: number }>()
+  const porPuestoMap = new Map<string, { total: number; pedidos: number }>()
+  const porTortillaMap = new Map<string, { cantidad: number; total: number }>()
+  let cantidadEnvios = 0
+  let cantidadRetiros = 0
+
+  for (const p of pedidos) {
+    const fecha = new Date((p as any).createdAt)
+
+    if (fecha >= inicioHoy) hoy += p.total
+    if (fecha >= hace7dias) semana += p.total
+    if (fecha >= hace30dias) mes += p.total
+
+    if (fecha >= hace14dias) {
+      const clave = fecha.toISOString().slice(0, 10)
+      porDiaMap.set(clave, (porDiaMap.get(clave) ?? 0) + p.total)
+    }
+
+    if (p.entrega === 'envio') {
+      cantidadEnvios++
+      const zona = p.zona as any
+      const nombre = zona?.nombre ?? 'Sin zona'
+      const actual = porZonaMap.get(nombre) ?? { total: 0, pedidos: 0 }
+      actual.total += p.total
+      actual.pedidos += 1
+      porZonaMap.set(nombre, actual)
+    } else {
+      cantidadRetiros++
+      const puesto = p.puesto as any
+      const nombre = puesto?.nombre ?? 'Sin puesto'
+      const actual = porPuestoMap.get(nombre) ?? { total: 0, pedidos: 0 }
+      actual.total += p.total
+      actual.pedidos += 1
+      porPuestoMap.set(nombre, actual)
+    }
+
+    for (const item of p.items) {
+      const actual = porTortillaMap.get(item.nombre) ?? { cantidad: 0, total: 0 }
+      actual.cantidad += item.cantidad
+      actual.total += item.precio * item.cantidad
+      porTortillaMap.set(item.nombre, actual)
+    }
+  }
+
+  // Completa los 14 días aunque no haya ventas, para que el gráfico no tenga huecos
+  const porDia: { fecha: string; total: number }[] = []
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(hace14dias.getTime() + i * 24 * 60 * 60 * 1000)
+    const clave = d.toISOString().slice(0, 10)
+    porDia.push({ fecha: clave, total: porDiaMap.get(clave) ?? 0 })
+  }
+
+  res.json({
+    hoy,
+    semana,
+    mes,
+    porDia,
+    porZona: [...porZonaMap.entries()].map(([nombre, v]) => ({ nombre, ...v })),
+    porPuesto: [...porPuestoMap.entries()].map(([nombre, v]) => ({ nombre, ...v })),
+    porTortilla: [...porTortillaMap.entries()]
+      .map(([nombre, v]) => ({ nombre, ...v }))
+      .sort((a, b) => b.cantidad - a.cantidad),
+    entregaVsRetiro: { envio: cantidadEnvios, retiro: cantidadRetiros },
+    totalPedidos: pedidos.length,
+  })
+})
+
+// GET /api/pedidos/mios -> los pedidos del cliente logueado (cualquier usuario, no solo admin)
+// OJO: también va antes de /:id por el mismo motivo que estadisticas.
+pedidosRouter.get('/mios', verificarToken, async (req, res) => {
+  const pedidos = await Pedido.find({ cliente: req.usuario!.id })
+    .populate('zona')
+    .populate('puesto')
+    .sort({ createdAt: -1 })
+  res.json(pedidos)
+})
+
+// GET /api/pedidos/:id -> uno solo (solo admin)
+pedidosRouter.get('/:id', verificarToken, requiereAdmin, async (req, res) => {
+  const pedido = await Pedido.findById(req.params.id).populate('zona').populate('puesto')
+  if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  res.json(pedido)
+})
+
+// POST /api/pedidos -> crea un pedido nuevo desde el carrito del front.
+// Ahora exige estar logueado (cliente o admin): el pedido queda atado a esa cuenta.
+pedidosRouter.post('/', verificarToken, async (req, res) => {
+  try {
+    const {
+      items,
+      entrega,
+      zona: zonaId,
+      puesto: puestoId,
+      direccion,
+      comentario,
+      pago,
+      montoEfectivo,
+    } = req.body
+
+    if (!items?.length) {
+      return res.status(400).json({ error: 'El pedido no tiene items' })
+    }
+
+    let costoEnvio = 0
+    let zona = null
+    let puesto = null
+
+    if (entrega === 'envio') {
+      if (!direccion) {
+        return res.status(400).json({ error: 'Falta la dirección para el envío' })
+      }
+      zona = await Zona.findById(zonaId)
+      if (!zona) return res.status(400).json({ error: 'Zona inválida' })
+      costoEnvio = zona.envio
+    } else if (entrega === 'retiro') {
+      puesto = await Puesto.findById(puestoId)
+      if (!puesto) return res.status(400).json({ error: 'Puesto de retiro inválido' })
+    } else {
+      return res.status(400).json({ error: 'Tipo de entrega inválido' })
+    }
+
+    const subtotal = items.reduce(
+      (acc: number, i: { precio: number; cantidad: number }) =>
+        acc + i.precio * i.cantidad,
+      0,
+    )
+    const total = subtotal + costoEnvio
+
+    if (pago === 'efectivo' && montoEfectivo != null && montoEfectivo < total) {
+      return res.status(400).json({ error: 'El monto en efectivo es menor al total del pedido' })
+    }
+
+    const pedido = await Pedido.create({
+      cliente: req.usuario!.id,
+      items,
+      entrega,
+      zona: zona?._id,
+      puesto: puesto?._id,
+      direccion,
+      comentario,
+      pago,
+      montoEfectivo: pago === 'efectivo' ? montoEfectivo : undefined,
+      subtotal,
+      costoEnvio,
+      total,
+    })
+
+    res.status(201).json(pedido)
+  } catch (err) {
+    res.status(400).json({ error: 'No se pudo crear el pedido', detalle: err })
+  }
+})
+
+// PUT /api/pedidos/:id/estado -> cambiar estado (solo admin)
+pedidosRouter.put('/:id/estado', verificarToken, requiereAdmin, async (req, res) => {
+  const { estado } = req.body
+  const pedido = await Pedido.findByIdAndUpdate(req.params.id, { estado }, { new: true })
+  if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  res.json(pedido)
+})
+
+// PUT /api/pedidos/:id/transferencia -> el cliente informa una transferencia y adjunta
+// el comprobante. El pedido queda pendiente de revisión del admin.
+pedidosRouter.put(
+  '/:id/transferencia',
+  verificarToken,
+  upload.single('comprobante'),
+  async (req, res) => {
+    const pedido = await Pedido.findOne({ _id: req.params.id, cliente: req.usuario!.id })
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado' })
+    if (pedido.pago !== 'transferencia') {
+      return res.status(400).json({ error: 'Este pedido no es por transferencia' })
+    }
+
+    const titular = String(req.body.titular ?? '').trim()
+    if (!titular) return res.status(400).json({ error: 'Indicá el titular de la transferencia' })
+    if (!req.file && !pedido.comprobanteTransferencia) {
+      return res.status(400).json({ error: 'Adjuntá el comprobante de la transferencia' })
+    }
+
+    pedido.transferenciaInformada = true
+    pedido.transferenciaTitular = titular
+    if (req.file) {
+      pedido.comprobanteTransferencia = await subirArchivo(
+        req.file,
+        'tortillas-al-paso/comprobantes',
+      )
+    }
+    await pedido.save()
+    res.json(pedido)
+  },
+)
+
+// PUT /api/pedidos/:id/pago-confirmado -> confirmar recepción (solo admin)
+pedidosRouter.put('/:id/pago-confirmado', verificarToken, requiereAdmin, async (req, res) => {
+  const pedido = await Pedido.findByIdAndUpdate(
+    req.params.id,
+    { pagoConfirmado: true },
+    { new: true },
+  )
+  if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  res.json(pedido)
+})
