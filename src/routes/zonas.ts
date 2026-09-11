@@ -26,3 +26,10 @@ zonasRouter.put('/:id', verificarToken, requiereAdmin, async (req, res) => {
   if (!zona) return res.status(404).json({ error: 'No encontrada' })
   res.json(zona)
 })
+
+// DELETE /api/zonas/:id -> baja lógica para conservar pedidos históricos
+zonasRouter.delete('/:id', verificarToken, requiereAdmin, async (req, res) => {
+  const zona = await Zona.findByIdAndUpdate(req.params.id, { activa: false }, { new: true })
+  if (!zona) return res.status(404).json({ error: 'No encontrada' })
+  res.json({ ok: true })
+})
