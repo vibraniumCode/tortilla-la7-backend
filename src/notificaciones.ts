@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import webpush from 'web-push'
 import { Usuario, type INotificacionSuscripcion } from './models/Usuario.js'
 
