@@ -14,23 +14,26 @@ dotenv.config()
 async function seed() {
   await conectarDB()
 
-  await Zona.deleteMany({})
-  await Zona.insertMany([
+  const zonas = [
     { nombre: 'Berazategui Centro', envio: 500 },
     { nombre: 'Quilmes', envio: 700 },
     { nombre: 'Espeleta', envio: 600 },
-  ])
+  ]
+  for (const zona of zonas) {
+    await Zona.findOneAndUpdate({ nombre: zona.nombre }, zona, { upsert: true, new: true })
+  }
 
-  await Puesto.deleteMany({})
-  await Puesto.insertMany([
+  const puestos = [
     { nombre: 'Berazategui', direccion: 'Av. 7 esq. 109' },
     { nombre: 'La Florida', direccion: 'Av. 844 esq. 873' },
     { nombre: 'Feria Senzabello', direccion: 'Feria Senzabello' },
     { nombre: 'Derqui', direccion: '4772 entre Andrés Bruzone y Salta' },
-  ])
+  ]
+  for (const puesto of puestos) {
+    await Puesto.findOneAndUpdate({ nombre: puesto.nombre }, puesto, { upsert: true, new: true })
+  }
 
-  await Tortilla.deleteMany({})
-  const tortillas = await Tortilla.insertMany([
+  const tortillasBase = [
     {
       nombre: 'Jamón y Mozzarella',
       descripcion: 'La clásica, jamón cocido y mozzarella bien gratinada.',
@@ -68,13 +71,22 @@ async function seed() {
       precio: 2500,
       imagen: 'https://placehold.co/300x300/ec740f/faf6f1?text=Tortilla',
     },
-  ])
+  ]
+  const tortillas = []
+  for (const tortilla of tortillasBase) {
+    tortillas.push(
+      await Tortilla.findOneAndUpdate({ nombre: tortilla.nombre }, tortilla, {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }),
+    )
+  }
 
   const roquefort = tortillas.find((t) => t.nombre === 'Jamón y Roquefort')
   const bondiola = tortillas.find((t) => t.nombre === 'Bondiola Desmenuzada')
 
-  await Novedad.deleteMany({})
-  await Novedad.insertMany([
+  const novedades = [
     {
       eyebrow: 'Tortilla del día',
       titulo: roquefort?.nombre,
@@ -100,7 +112,14 @@ async function seed() {
       cta: 'Ver puestos',
       orden: 3,
     },
-  ])
+  ]
+  for (const novedad of novedades) {
+    await Novedad.findOneAndUpdate({ titulo: novedad.titulo }, novedad, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    })
+  }
 
   console.log('Seed completo: zonas, puestos, tortillas y novedades cargadas')
   await mongoose.disconnect()

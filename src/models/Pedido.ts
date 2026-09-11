@@ -12,8 +12,10 @@ export interface IPedido {
   items: IItemPedido[]
   entrega: 'envio' | 'retiro'
   zona?: Types.ObjectId
+  localidad?: string
   puesto?: Types.ObjectId
   direccion?: string
+  horarioEntrega?: string
   comentario?: string
   pago: 'efectivo' | 'transferencia'
   montoEfectivo?: number
@@ -21,6 +23,8 @@ export interface IPedido {
   transferenciaInformada: boolean
   transferenciaTitular?: string
   comprobanteTransferencia?: string
+  codigoReparto?: string
+  linkUbicacion?: string
   subtotal: number
   costoEnvio: number
   total: number
@@ -43,8 +47,10 @@ const pedidoSchema = new Schema<IPedido>(
     cliente: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
     entrega: { type: String, enum: ['envio', 'retiro'], required: true },
     zona: { type: Schema.Types.ObjectId, ref: 'Zona' },
+    localidad: { type: String },
     puesto: { type: Schema.Types.ObjectId, ref: 'Puesto' },
     direccion: { type: String },
+    horarioEntrega: { type: String },
     comentario: { type: String },
     pago: { type: String, enum: ['efectivo', 'transferencia'], required: true },
     montoEfectivo: { type: Number },
@@ -52,6 +58,8 @@ const pedidoSchema = new Schema<IPedido>(
     transferenciaInformada: { type: Boolean, default: false },
     transferenciaTitular: { type: String },
     comprobanteTransferencia: { type: String },
+    codigoReparto: { type: String },
+    linkUbicacion: { type: String },
     subtotal: { type: Number, required: true },
     costoEnvio: { type: Number, required: true },
     total: { type: Number, required: true },

@@ -12,7 +12,7 @@ import { pedidosRouter } from './routes/pedidos.js'
 import { authRouter } from './routes/auth.js'
 import { uploadsRouter } from './routes/uploads.js'
 import { configuracionRouter } from './routes/configuracion.js'
-import { mercadopagoRouter } from './routes/mercadopago.js'
+import { notificacionesRouter } from './routes/notificaciones.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -33,7 +33,7 @@ app.use('/api/novedades', novedadesRouter)
 app.use('/api/pedidos', pedidosRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/configuracion', configuracionRouter)
-app.use('/api/mercadopago', mercadopagoRouter)
+app.use('/api/notificaciones', notificacionesRouter)
 
 app.get('/', (_req, res) => {
   res.json({ ok: true, servicio: 'Tortillas al Paso API' })

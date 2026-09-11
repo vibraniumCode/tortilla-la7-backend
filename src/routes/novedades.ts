@@ -33,13 +33,9 @@ novedadesRouter.put('/:id', verificarToken, requiereAdmin, async (req, res) => {
   res.json(novedad)
 })
 
-// DELETE /api/novedades/:id -> baja lógica (solo admin)
+// DELETE /api/novedades/:id -> elimina definitivamente (solo admin)
 novedadesRouter.delete('/:id', verificarToken, requiereAdmin, async (req, res) => {
-  const novedad = await Novedad.findByIdAndUpdate(
-    req.params.id,
-    { activa: false },
-    { new: true },
-  )
+  const novedad = await Novedad.findByIdAndDelete(req.params.id)
   if (!novedad) return res.status(404).json({ error: 'No encontrada' })
   res.json({ ok: true })
 })

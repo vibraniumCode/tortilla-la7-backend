@@ -2,8 +2,11 @@ import { Router } from 'express'
 import { Pedido } from '../models/Pedido.js'
 import { Zona } from '../models/Zona.js'
 import { Puesto } from '../models/Puesto.js'
+import { Usuario } from '../models/Usuario.js'
+import { Tortilla } from '../models/Tortilla.js'
 import { verificarToken, requiereAdmin } from '../middleware/auth.js'
 import { subirArchivo, upload } from './uploads.js'
+import { notificarAdmins, notificarUsuario } from '../notificaciones.js'
 
 export const pedidosRouter = Router()
 
@@ -127,8 +130,10 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       items,
       entrega,
       zona: zonaId,
+      localidad,
       puesto: puestoId,
       direccion,
+      horarioEntrega,
       comentario,
       pago,
       montoEfectivo,
@@ -146,12 +151,34 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       if (!direccion) {
         return res.status(400).json({ error: 'Falta la dirección para el envío' })
       }
+      if (!localidad?.trim()) {
+        return res.status(400).json({ error: 'Falta la localidad para el envío' })
+      }
+      if (pago !== 'transferencia') {
+        return res.status(400).json({ error: 'Los envíos a domicilio solo aceptan transferencia' })
+      }
       zona = await Zona.findById(zonaId)
       if (!zona) return res.status(400).json({ error: 'Zona inválida' })
       costoEnvio = zona.envio
     } else if (entrega === 'retiro') {
+      const cliente = await Usuario.findById(req.usuario!.id).select('puedeElegirHorario')
+      if (horarioEntrega && !cliente?.puedeElegirHorario) {
+        return res.status(400).json({ error: 'Tu cuenta no puede elegir horario de entrega' })
+      }
       puesto = await Puesto.findById(puestoId)
       if (!puesto) return res.status(400).json({ error: 'Puesto de retiro inválido' })
+
+      const tortillas = await Tortilla.find({
+        _id: { $in: items.map((item: { tortilla: string }) => item.tortilla) },
+      })
+      const noDisponibles = tortillas.find(
+        (tortilla) =>
+          tortilla.puestosDisponibles?.length &&
+          !tortilla.puestosDisponibles.some((id) => String(id) === String(puesto!._id)),
+      )
+      if (noDisponibles) {
+        return res.status(400).json({ error: `${noDisponibles.nombre} no está disponible en ese puesto` })
+      }
     } else {
       return res.status(400).json({ error: 'Tipo de entrega inválido' })
     }
@@ -172,14 +199,22 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       items,
       entrega,
       zona: zona?._id,
+      localidad: entrega === 'envio' ? localidad.trim() : undefined,
       puesto: puesto?._id,
       direccion,
+      horarioEntrega: entrega === 'retiro' ? horarioEntrega : undefined,
       comentario,
       pago,
       montoEfectivo: pago === 'efectivo' ? montoEfectivo : undefined,
       subtotal,
       costoEnvio,
       total,
+    })
+
+    await notificarAdmins({
+      titulo: 'Nuevo pedido',
+      cuerpo: `Recibiste un pedido de $${total.toLocaleString('es-AR')}`,
+      url: '/admin',
     })
 
     res.status(201).json(pedido)
@@ -193,6 +228,43 @@ pedidosRouter.put('/:id/estado', verificarToken, requiereAdmin, async (req, res)
   const { estado } = req.body
   const pedido = await Pedido.findByIdAndUpdate(req.params.id, { estado }, { new: true })
   if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  const mensajes: Record<string, string> = {
+    confirmado: 'Tu pedido fue confirmado',
+    en_camino: 'Tu pedido está en camino',
+    entregado: 'Tu pedido fue entregado',
+    cancelado: 'Tu pedido fue cancelado',
+  }
+  if (mensajes[estado]) {
+    await notificarUsuario(String(pedido.cliente), {
+      titulo: mensajes[estado],
+      cuerpo: estado === 'en_camino' ? 'El repartidor ya está llevando tu pedido.' : 'Revisá el estado en Mis pedidos.',
+      url: '/mis-pedidos',
+    })
+  }
+  res.json(pedido)
+})
+
+// PUT /api/pedidos/:id/seguimiento -> datos para el repartidor y el cliente
+pedidosRouter.put('/:id/seguimiento', verificarToken, requiereAdmin, async (req, res) => {
+  const { codigoReparto, linkUbicacion } = req.body
+  const linkNormalizado = linkUbicacion?.trim()
+    ? /^https?:\/\//i.test(linkUbicacion.trim())
+      ? linkUbicacion.trim()
+      : `https://${linkUbicacion.trim()}`
+    : undefined
+  const pedido = await Pedido.findByIdAndUpdate(
+    req.params.id,
+    { codigoReparto: codigoReparto?.trim() || undefined, linkUbicacion: linkNormalizado },
+    { new: true },
+  )
+  if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  if (codigoReparto?.trim() || linkUbicacion?.trim()) {
+    await notificarUsuario(String(pedido.cliente), {
+      titulo: 'Seguimiento disponible',
+      cuerpo: 'Ya podés consultar el código y la ubicación de tu pedido.',
+      url: '/mis-pedidos',
+    })
+  }
   res.json(pedido)
 })
 
@@ -224,6 +296,11 @@ pedidosRouter.put(
       )
     }
     await pedido.save()
+    await notificarAdmins({
+      titulo: 'Transferencia informada',
+      cuerpo: 'Un cliente informó una transferencia y adjuntó su comprobante.',
+      url: '/admin',
+    })
     res.json(pedido)
   },
 )
@@ -236,5 +313,10 @@ pedidosRouter.put('/:id/pago-confirmado', verificarToken, requiereAdmin, async (
     { new: true },
   )
   if (!pedido) return res.status(404).json({ error: 'No encontrado' })
+  await notificarUsuario(String(pedido.cliente), {
+    titulo: 'Pago confirmado',
+    cuerpo: 'Confirmamos la recepción de tu transferencia.',
+    url: '/mis-pedidos',
+  })
   res.json(pedido)
 })

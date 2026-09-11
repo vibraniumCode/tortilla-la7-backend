@@ -7,6 +7,8 @@ export interface INovedad {
   cta: string
   precio?: number
   tortilla?: Types.ObjectId
+  fondo?: string
+  colorTitulo?: string
   orden: number
   activa: boolean
 }
@@ -19,6 +21,8 @@ const novedadSchema = new Schema<INovedad>(
     cta: { type: String, required: true, default: 'Pedir ahora' },
     precio: { type: Number },
     tortilla: { type: Schema.Types.ObjectId, ref: 'Tortilla' },
+    fondo: { type: String },
+    colorTitulo: { type: String, default: '#FAF6F1' },
     orden: { type: Number, default: 0 },
     activa: { type: Boolean, default: true },
   },

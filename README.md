@@ -12,7 +12,8 @@ API en Node + Express + TypeScript + MongoDB (Mongoose).
 2. `npm install`
 3. `npm run seed`         -> carga zonas, puestos, tortillas y novedades de arranque
 4. `npm run crear-admin`  -> crea el usuario admin (dueño) con los datos del .env
-5. `npm run dev`          -> levanta el servidor en http://localhost:4000
+5. `npm run crear-cliente-especial` -> crea o actualiza la cuenta de fábrica con permiso para elegir horario
+6. `npm run dev`           -> levanta el servidor en http://localhost:4000
 
 ## Autenticación
 
@@ -77,11 +78,6 @@ API en Node + Express + TypeScript + MongoDB (Mongoose).
 ### Configuración
 - GET /api/configuracion -> alias de transferencia, etc. (público)
 - PUT /api/configuracion -> editar (solo admin)
-
-### Mercado Pago (inactivo hasta cargar MP_ACCESS_TOKEN en el .env)
-- POST /api/mercadopago/preferencia -> crea el link de pago para un pedido
-- POST /api/mercadopago/webhook     -> Mercado Pago avisa acá cuando se aprueba un pago
-  (necesita MP_WEBHOOK_URL pública — no funciona apuntando a localhost)
 
 ## Pendiente / a definir
 - No hay autenticación todavía (ni de clientes ni de admin). Si vas a tener

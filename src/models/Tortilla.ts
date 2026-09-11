@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose'
+import { Schema, Types, model } from 'mongoose'
 
 export interface ITortilla {
   nombre: string
@@ -7,6 +7,7 @@ export interface ITortilla {
   imagen: string
   nueva: boolean
   activa: boolean
+  puestosDisponibles?: Types.ObjectId[]
 }
 
 const tortillaSchema = new Schema<ITortilla>(
@@ -17,6 +18,7 @@ const tortillaSchema = new Schema<ITortilla>(
     imagen: { type: String, required: true },
     nueva: { type: Boolean, default: false },
     activa: { type: Boolean, default: true },
+    puestosDisponibles: [{ type: Schema.Types.ObjectId, ref: 'Puesto' }],
   },
   { timestamps: true },
 )
