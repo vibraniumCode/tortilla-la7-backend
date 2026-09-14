@@ -20,7 +20,14 @@ async function crearClienteEspecial() {
   const passwordHash = await bcrypt.hash(password, 10)
   await Usuario.findOneAndUpdate(
     { email: email.toLowerCase() },
-    { nombre, email: email.toLowerCase(), passwordHash, rol: 'cliente', puedeElegirHorario: true },
+    {
+      nombre,
+      email: email.toLowerCase(),
+      passwordHash,
+      rol: 'cliente',
+      puedeElegirHorario: true,
+      envioGratis: true,
+    },
     { upsert: true, new: true },
   )
   console.log(`Cliente especial creado/actualizado: ${email}`)

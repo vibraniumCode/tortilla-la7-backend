@@ -15,6 +15,7 @@ export interface IUsuario {
   passwordHash: string
   telefono?: string
   puedeElegirHorario: boolean
+  envioGratis: boolean
   rol: 'cliente' | 'admin'
   suscripcionesNotificaciones: INotificacionSuscripcion[]
 }
@@ -26,6 +27,7 @@ const usuarioSchema = new Schema<IUsuario>(
     passwordHash: { type: String, required: true },
     telefono: { type: String },
     puedeElegirHorario: { type: Boolean, default: false },
+    envioGratis: { type: Boolean, default: false },
     rol: { type: String, enum: ['cliente', 'admin'], default: 'cliente' },
     suscripcionesNotificaciones: {
       type: [

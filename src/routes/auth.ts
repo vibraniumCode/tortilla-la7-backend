@@ -41,7 +41,7 @@ authRouter.post('/registro', async (req, res) => {
     const token = firmarToken(usuario)
     res.status(201).json({
       token,
-      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, puedeElegirHorario: usuario.puedeElegirHorario },
+      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, puedeElegirHorario: usuario.puedeElegirHorario, envioGratis: usuario.envioGratis },
     })
   } catch (err) {
     res.status(400).json({ error: 'No se pudo registrar', detalle: err })
@@ -69,7 +69,7 @@ authRouter.post('/login', async (req, res) => {
   const token = firmarToken(usuario)
   res.json({
     token,
-    usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, puedeElegirHorario: usuario.puedeElegirHorario },
+    usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, puedeElegirHorario: usuario.puedeElegirHorario, envioGratis: usuario.envioGratis },
   })
 })
 

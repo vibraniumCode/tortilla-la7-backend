@@ -157,13 +157,13 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       if (pago !== 'transferencia') {
         return res.status(400).json({ error: 'Los envíos a domicilio solo aceptan transferencia' })
       }
-      const cliente = await Usuario.findById(req.usuario!.id).select('puedeElegirHorario')
+      const cliente = await Usuario.findById(req.usuario!.id).select('puedeElegirHorario envioGratis')
       if (horarioEntrega && !cliente?.puedeElegirHorario) {
         return res.status(400).json({ error: 'Tu cuenta no puede elegir horario de entrega' })
       }
       zona = await Zona.findById(zonaId)
       if (!zona) return res.status(400).json({ error: 'Zona inválida' })
-      costoEnvio = zona.envio
+      costoEnvio = cliente?.envioGratis ? 0 : zona.envio
     } else if (entrega === 'retiro') {
       puesto = await Puesto.findById(puestoId)
       if (!puesto) return res.status(400).json({ error: 'Puesto de retiro inválido' })
