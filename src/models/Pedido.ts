@@ -9,6 +9,7 @@ export interface IItemPedido {
 
 export interface IPedido {
   cliente: Types.ObjectId
+  nombrePedido?: string
   items: IItemPedido[]
   entrega: 'envio' | 'retiro'
   zona?: Types.ObjectId
@@ -45,6 +46,7 @@ const pedidoSchema = new Schema<IPedido>(
   {
     items: { type: [itemPedidoSchema], required: true },
     cliente: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
+    nombrePedido: { type: String },
     entrega: { type: String, enum: ['envio', 'retiro'], required: true },
     zona: { type: Schema.Types.ObjectId, ref: 'Zona' },
     localidad: { type: String },

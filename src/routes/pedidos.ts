@@ -15,6 +15,7 @@ pedidosRouter.get('/', verificarToken, requiereAdmin, async (_req, res) => {
   const pedidos = await Pedido.find()
     .populate('zona')
     .populate('puesto')
+    .populate('cliente', 'nombre email telefono')
     .sort({ createdAt: -1 })
   res.json(pedidos)
 })
@@ -117,7 +118,10 @@ pedidosRouter.get('/mios', verificarToken, async (req, res) => {
 
 // GET /api/pedidos/:id -> uno solo (solo admin)
 pedidosRouter.get('/:id', verificarToken, requiereAdmin, async (req, res) => {
-  const pedido = await Pedido.findById(req.params.id).populate('zona').populate('puesto')
+  const pedido = await Pedido.findById(req.params.id)
+    .populate('zona')
+    .populate('puesto')
+    .populate('cliente', 'nombre email telefono')
   if (!pedido) return res.status(404).json({ error: 'No encontrado' })
   res.json(pedido)
 })
@@ -128,6 +132,7 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
   try {
     const {
       items,
+      nombrePedido,
       entrega,
       zona: zonaId,
       localidad,
@@ -141,6 +146,9 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
 
     if (!items?.length) {
       return res.status(400).json({ error: 'El pedido no tiene items' })
+    }
+    if (!nombrePedido?.trim()) {
+      return res.status(400).json({ error: 'Falta el nombre de la persona que recibe el pedido' })
     }
 
     let costoEnvio = 0
@@ -196,6 +204,7 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
 
     const pedido = await Pedido.create({
       cliente: req.usuario!.id,
+      nombrePedido: nombrePedido.trim(),
       items,
       entrega,
       zona: zona?._id,
