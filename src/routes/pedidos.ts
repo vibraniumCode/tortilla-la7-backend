@@ -157,14 +157,14 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       if (pago !== 'transferencia') {
         return res.status(400).json({ error: 'Los envíos a domicilio solo aceptan transferencia' })
       }
-      zona = await Zona.findById(zonaId)
-      if (!zona) return res.status(400).json({ error: 'Zona inválida' })
-      costoEnvio = zona.envio
-    } else if (entrega === 'retiro') {
       const cliente = await Usuario.findById(req.usuario!.id).select('puedeElegirHorario')
       if (horarioEntrega && !cliente?.puedeElegirHorario) {
         return res.status(400).json({ error: 'Tu cuenta no puede elegir horario de entrega' })
       }
+      zona = await Zona.findById(zonaId)
+      if (!zona) return res.status(400).json({ error: 'Zona inválida' })
+      costoEnvio = zona.envio
+    } else if (entrega === 'retiro') {
       puesto = await Puesto.findById(puestoId)
       if (!puesto) return res.status(400).json({ error: 'Puesto de retiro inválido' })
 
@@ -173,7 +173,7 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       })
       const noDisponibles = tortillas.find(
         (tortilla) =>
-          tortilla.puestosDisponibles?.length &&
+          tortilla.puestosDisponibles !== undefined &&
           !tortilla.puestosDisponibles.some((id) => String(id) === String(puesto!._id)),
       )
       if (noDisponibles) {
@@ -202,7 +202,7 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       localidad: entrega === 'envio' ? localidad.trim() : undefined,
       puesto: puesto?._id,
       direccion,
-      horarioEntrega: entrega === 'retiro' ? horarioEntrega : undefined,
+      horarioEntrega: entrega === 'envio' ? horarioEntrega : undefined,
       comentario,
       pago,
       montoEfectivo: pago === 'efectivo' ? montoEfectivo : undefined,
