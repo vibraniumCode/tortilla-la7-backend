@@ -12,42 +12,6 @@ function firmarToken(usuario: { _id: unknown; rol: string }) {
   })
 }
 
-// POST /api/auth/registro -> solo crea clientes (nunca admin desde acá)
-authRouter.post('/registro', async (req, res) => {
-  try {
-    const { nombre, email, password, telefono } = req.body
-
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ error: 'Faltan datos obligatorios' })
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
-    }
-
-    const yaExiste = await Usuario.findOne({ email: email.toLowerCase() })
-    if (yaExiste) {
-      return res.status(409).json({ error: 'Ya existe una cuenta con ese email' })
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10)
-    const usuario = await Usuario.create({
-      nombre,
-      email,
-      telefono,
-      passwordHash,
-      rol: 'cliente',
-    })
-
-    const token = firmarToken(usuario)
-    res.status(201).json({
-      token,
-      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, puedeElegirHorario: usuario.puedeElegirHorario, envioGratis: usuario.envioGratis },
-    })
-  } catch (err) {
-    res.status(400).json({ error: 'No se pudo registrar', detalle: err })
-  }
-})
-
 // POST /api/auth/login -> sirve para clientes y para el admin
 authRouter.post('/login', async (req, res) => {
   const { email, password } = req.body

@@ -8,7 +8,7 @@ export const configuracionRouter = Router()
 configuracionRouter.get('/', async (_req, res) => {
   let config = await Configuracion.findOne()
   if (!config) {
-    config = await Configuracion.create({ aliasTransferencia: '' })
+    config = await Configuracion.create({ whatsapp: '', aliasTransferencia: '' })
   }
   res.json(config)
 })

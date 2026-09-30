@@ -1,6 +1,7 @@
 import { Schema, model } from 'mongoose'
 
 export interface IConfiguracion {
+  whatsapp: string
   aliasTransferencia: string
   cbu?: string
   titular?: string
@@ -8,6 +9,7 @@ export interface IConfiguracion {
 
 const configuracionSchema = new Schema<IConfiguracion>(
   {
+    whatsapp: { type: String, default: '' },
     aliasTransferencia: { type: String, default: '' },
     cbu: { type: String },
     titular: { type: String },
