@@ -172,6 +172,25 @@ pedidosRouter.post('/', verificarToken, async (req, res) => {
       zona = await Zona.findById(zonaId)
       if (!zona) return res.status(400).json({ error: 'Zona inválida' })
       costoEnvio = cliente?.envioGratis ? 0 : zona.envio
+      const puestosActivos = await Puesto.find({ activo: true }, { _id: 1 })
+      const tortillas = await Tortilla.find({
+        _id: { $in: items.map((item: { tortilla: string }) => item.tortilla) },
+      })
+      const noDisponibles = tortillas.filter(
+        (tortilla) =>
+          tortilla.puestosDisponibles !== undefined &&
+          puestosActivos.some(
+            (puesto) =>
+              !tortilla.puestosDisponibles!.some(
+                (id) => String(id) === String(puesto._id),
+              ),
+          ),
+      )
+      if (noDisponibles.length) {
+        return res.status(400).json({
+          error: `No disponible para envío: ${noDisponibles.map((tortilla) => tortilla.nombre).join(', ')}`,
+        })
+      }
     } else if (entrega === 'retiro') {
       puesto = await Puesto.findById(puestoId)
       if (!puesto) return res.status(400).json({ error: 'Puesto de retiro inválido' })
